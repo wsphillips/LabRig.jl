@@ -1,0 +1,4 @@
+name = "LabRig"
+uuid = "a7f822e8-02f1-418f-8f8b-dcc75f5c3c8a"
+authors = ["Wiktor Phillips <wsphillips@gmail.com>"]
+version = "0.1.0"
