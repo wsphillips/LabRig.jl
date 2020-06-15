@@ -2,3 +2,7 @@ name = "LabRig"
 uuid = "a7f822e8-02f1-418f-8f8b-dcc75f5c3c8a"
 authors = ["Wiktor Phillips <wsphillips@gmail.com>"]
 version = "0.1.0"
+
+[deps]
+CImGui = "5d785b6c-b76f-510e-a07c-3070796c7e87"
+LabJack = "961e5755-77e0-4113-a782-3f305e67c3ba"
