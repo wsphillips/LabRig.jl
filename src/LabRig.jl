@@ -15,23 +15,30 @@ using Printf
 using CImPlot
 
 include("remote.jl")
-include("imgui_init.jl")
 
+include("imgui_init.jl")
 if nprocs() > 1
     wait(@spawnat pid record!(result, task; remote = r_chan))
 end
+
 # Main program loop
+const ps1 = GLFW.JOYSTICK_1
 try
     clear_color = Cfloat[0.45, 0.55, 0.60, 1.00]
+    use_controller = false
+    t = Float32.(collect(1:fld(length(signal),2)))
+    t = repeat(t, inner=2)
+
     while !GLFW.WindowShouldClose(window)
         GLFW.PollEvents()
         # start the Dear ImGui frame
         ImGui_ImplOpenGL3_NewFrame()
         ImGui_ImplGlfw_NewFrame()
         CImGui.NewFrame()
- 
+        
         data = take!(r_chan)
-        append!(signal, data[1:ratio:end])
+        append!(signal, data)
+        v_sig = Float32.(signal)
 
         @cstatic f=Cint(0) begin
             set_pressure(f)
@@ -45,7 +52,7 @@ try
         @cstatic position=Cint(0) home=Cint(0) work=Cint(0) velocity=Cint(0) begin
 
             CImGui.Begin("Focus control")
-            
+            @c CImGui.Checkbox("Use controller", &use_controller) 
             if (CImGui.Button("Position: $position"))
                 position = Cint(fetch(@spawnat pid getposition()))
             end
@@ -68,26 +75,43 @@ try
                 @spawnat pid moveto(work)
             end
             
+            if !use_controller
             @c CImGui.DragInt("Axis Velocity", &velocity, 1.0, -2000, 2000)
+            end
 
+            if use_controller
+                axes_state = GLFW.GetJoystickAxes(ps1)
+                up_raw = (axes_state[3] + 1.0) / 2
+                down_raw = (axes_state[6] + 1.0) / 2
+
+                up = round(up_raw, digits = 1)
+                down = round(down_raw, digits = 1)
+
+                velocity = Int32(round(Int, ((down - up) * 20000)))
+                CImGui.Text("Velocity: $velocity")
+            end
+            
             if (CImGui.Button("STOPPP!!!!!"))
-                velocity = Int32(0)
+               velocity = Int32(0)
             end
 
             @spawnat pid set_velocity(Int32(velocity*100))
-
             CImGui.End()
         end
         
-        CImGui.Begin("Real-time Data")
-        if (CImPlot.BeginPlot("Data", "","",CImGui.ImVec2(-1,1000), CImPlot.LibCImPlot.ImPlotFlags_Default, CImPlot.LibCImPlot.ImPlotAxisFlags_Default,  CImPlot.LibCImPlot.ImPlotAxisFlags_Default))
-            v_sig = Float32.(signal)
-            xs = Float32.(collect(1:length(v_sig)))
-            CImPlot.Plot(xs, v_sig)
+        CImGui.Begin("Vm Data")
+        if (CImPlot.BeginPlot("Data", "","",CImGui.ImVec2(-1,700), CImPlot.LibCImPlot.ImPlotFlags_Default, CImPlot.LibCImPlot.ImPlotAxisFlags_Default,  CImPlot.LibCImPlot.ImPlotAxisFlags_Default))
+            CImPlot.Plot(v_sig, offset = 1, stride = 2*10, label = "Vm")
             CImPlot.EndPlot()
         end
         CImGui.End()
-
+       
+        CImGui.Begin("XII Data")
+        if (CImPlot.BeginPlot("Data", "","",CImGui.ImVec2(-1,400), CImPlot.LibCImPlot.ImPlotFlags_Default, CImPlot.LibCImPlot.ImPlotAxisFlags_Default,  CImPlot.LibCImPlot.ImPlotAxisFlags_Default))
+            CImPlot.Plot(v_sig, offset = 0, stride = 2*10, label = "Vm")
+            CImPlot.EndPlot()
+        end
+        CImGui.End()
         # rendering
         CImGui.Render()
         GLFW.MakeContextCurrent(window)

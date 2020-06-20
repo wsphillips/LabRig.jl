@@ -1,18 +1,19 @@
 
 using Distributed, DataStructures
 
-display_fs = 2000
-acquire_fs = 20000
-ratio = acquire_fs ÷ display_fs
+channels = 2
+#display_fs = 2000
+fs = 20000
+# ratio = acquire_fs ÷ display_fs
 refresh_hz = 50
-raw_buffer_samples = acquire_fs/refresh_hz
+# raw_buffer_samples = acquire_fs/refresh_hz
 
 history_seconds = 8
-history_samples = history_seconds * display_fs
+history_samples = history_seconds * fs * channels
 
 signal = CircularBuffer{Float64}(history_samples)
 append!(signal, zeros(Float64, history_samples))
-time = collect(history_samples:-1:1) .* -1/display_fs
+# time = collect((history_seconds * display_fs):-1:1) .* -1/display_fs
 
 procs = 1
 kmbslave = [("192.168.2.2",procs)]
@@ -31,8 +32,8 @@ if nprocs() > 1
     @spawnat pid @eval result = Float64[]
     @spawnat pid @eval dev = DefaultDev()
     wait(@spawnat pid @eval task = DAQTask{AI}())
-#    wait(@spawnat pid append!(task, dev.channels[AI][1], alias = "XII", tcfg = DAQmx.Diff, range = (-1.0,1.0)))
-    wait(@spawnat pid append!(task, dev.channels[AI][2], alias = "Vm", tcfg = DAQmx.Diff, range = (-1.0,1.0)))
+    wait(@spawnat pid append!(task, dev.channels[AI][1], alias = "XII", tcfg = DAQmx.Diff, range = (-1.0,1.0)))
+    wait(@spawnat pid append!(task, dev.channels[AI][3], alias = "Vm", tcfg = DAQmx.Diff, range = (-1.0,1.0)))
 
 end
 
