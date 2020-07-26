@@ -15,25 +15,28 @@ signal = CircularBuffer{Float64}(history_samples)
 append!(signal, zeros(Float64, history_samples))
 # time = collect((history_seconds * display_fs):-1:1) .* -1/display_fs
 
-procs = 1
-kmbslave = [("192.168.2.2",procs)]
-const pid = addprocs(kmbslave)[1];
+num_worker_procs = 2
+kmbslave = [("192.168.2.2",num_worker_procs)]
 
-# Init NIDAQ on slave machine
+worker_pids = addprocs(kmbslave)
+
+const nidaq_pid = worker_pids[1]
+const zeiss_pid = worker_pids[2]
+
+# Setup worker processes for Zeiss + NIDAQ
 
 if nprocs() > 1
     
-    #nidaq_exp = Meta.parse("using NIDAQ, Distributed")
-    #Distributed.remotecall_eval(Main, pid, nidaq_exp)
-    wait(@spawnat pid @eval using NIDAQ, Distributed, ZeissCAN29)
-
-    r_chan = RemoteChannel(() -> Channel{Vector{Float64}}(500), pid)    
+    wait(@spawnat nidaq_pid @eval using NIDAQ, Distributed)
+    wait(@spawnat zeiss_pid @eval using ZeissCAN29, Distributed)
     
-    @spawnat pid @eval result = Float64[]
-    @spawnat pid @eval dev = DefaultDev()
-    wait(@spawnat pid @eval task = DAQTask{AI}())
-    wait(@spawnat pid append!(task, dev.channels[AI][1], alias = "XII", tcfg = DAQmx.Diff, range = (-1.0,1.0)))
-    wait(@spawnat pid append!(task, dev.channels[AI][3], alias = "Vm", tcfg = DAQmx.Diff, range = (-1.0,1.0)))
+    # Init NIDAQ for continuous acquisition
+    r_chan = RemoteChannel(() -> Channel{Vector{Float64}}(500), nidaq_pid)    
+    @spawnat nidaq_pid @eval result = Float64[]
+    @spawnat nidaq_pid @eval dev = DefaultDev()
+    wait(@spawnat nidaq_pid @eval task = DAQTask{AI}())
+    wait(@spawnat nidaq_pid append!(task, dev.channels[AI][2], alias = "XII", tcfg = DAQmx.Diff, range = (-1.0,1.0)))
+    wait(@spawnat nidaq_pid append!(task, dev.channels[AI][3], alias = "Vm", tcfg = DAQmx.Diff, range = (-1.0,1.0)))
 
 end
 
