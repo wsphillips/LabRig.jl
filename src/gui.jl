@@ -22,10 +22,13 @@ const BACKGROUND_COLOR = Cfloat[0.45, 0.55, 0.60, 1.00]
 error_callback(err::GLFW.GLFWError) = @error "GLFW ERROR: code $(err.code) msg: $(err.description)"
 
 function __init__()
+    # These should only need to be set once
     GLFW.WindowHint(GLFW.CONTEXT_VERSION_MAJOR, 3)
     GLFW.WindowHint(GLFW.CONTEXT_VERSION_MINOR, 0)
     GLFW.SetErrorCallback(error_callback)
+end
 
+function setup_gui()
     # setup ImGui context
     global IMGUI_CONTEXT = CImGui.CreateContext()
     # set ImGui style
@@ -35,14 +38,13 @@ function __init__()
     fonts_dir = joinpath(@__DIR__, "..", "fonts")
     fonts = CImGui.GetIO().Fonts
     CImGui.AddFontFromFileTTF(fonts, joinpath(fonts_dir, "Roboto-Medium.ttf"), 16)
-end
 
-function setup()
     # create window
     global IMGUI_WINDOW = GLFW.CreateWindow(1280, 720, "LabRig")
     @assert IMGUI_WINDOW != C_NULL
     GLFW.MakeContextCurrent(IMGUI_WINDOW)
     GLFW.SwapInterval(1)  # enable vsync
+
     # setup Platform/Renderer bindings
     ImGui_ImplGlfw_InitForOpenGL(IMGUI_WINDOW, true)
     ImGui_ImplOpenGL3_Init(GLSL_VERSION)
@@ -55,7 +57,7 @@ function new_frame!()
 end
 
 function render!(window = IMGUI_WINDOW, clear_color = BACKGROUND_COLOR)
-    # tell imgui to render the draw data
+    # tell imgui to generate draw data
     CImGui.Render()
     
     # get the current window size from GLFW, resize the OpenGL viewport and fill
@@ -69,7 +71,7 @@ function render!(window = IMGUI_WINDOW, clear_color = BACKGROUND_COLOR)
     # fetch and render the draw data with OpenGL backend
     ImGui_ImplOpenGL3_RenderDrawData(CImGui.GetDrawData())
 
-    # swap to newly drawn buffer
+    # swap to newly rendered buffer
     GLFW.MakeContextCurrent(window)
     GLFW.SwapBuffers(window)
 end
@@ -131,26 +133,14 @@ function run_main_loop(; window = IMGUI_WINDOW)
                 @cstatic position=Cint(0) home=Cint(0) work=Cint(0) velocity=Cint(0) moving = false begin
                     (position, velocity, moving) = fetch(@spawnat zeiss_pid get_zeiss_state())
                     CImGui.Begin("Focus control")
+
                     @c CImGui.Checkbox("Use gamepad", &use_gamepad) 
-                    if (CImGui.Button("Position: $position"))
-                        @spawnat zeiss_pid pollposition!()
-                    end
-                    
-                    if (CImGui.Button("Set Home: $home"))
-                        home = position
-                    end
-        
-                    if (CImGui.Button("Set Work: $work"))
-                        work = position
-                    end
-        
-                    if (CImGui.Button("Go Home"))
-                        @spawnat zeiss_pid moveto(home)
-                    end
-        
-                    if (CImGui.Button("Go Work"))
-                        @spawnat zeiss_pid moveto(work)
-                    end
+
+                    CImGui.Button("Position: $position") && ZeissRemote.get_position()
+                    CImGui.Button("Set Home: $home") && (home = position)
+                    CImGui.Button("Set Work: $work") && (work = position)
+                    CImGui.Button("Go Home") && ZeissRemote.zposition!(home)
+                    CImGui.Button("Go Work") && ZeissRemote.zposition!(work)
                     
                     if !use_gamepad
                     @c CImGui.DragInt("Axis Velocity", &velocity, 1.0, -2000, 2000)
@@ -223,5 +213,10 @@ function run_main_loop(; window = IMGUI_WINDOW)
     end # async block
 
 end # function
+
+function launch_gui()
+    setup_gui()
+    run_main_loop()
+end
 
 end # module
