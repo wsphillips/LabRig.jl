@@ -14,11 +14,7 @@ struct ZeissState
     position::Integer
     velocity::Integer
     moving::Bool
-    move_in_progress::Bool #TODO: add this to ZeissCAN29 local state, issues on moveto, unlocks after
-                           # receipt of settled/completed status message. Allows
-                           # us to differentiate between a moving objective
-                           # that's following a set position command versus
-                           # general motion (e.g. closed-loop velocity)
+    step_in_progress::Bool 
 end
 
 function init(pid)
@@ -34,6 +30,8 @@ function update_focus!(gamepad::GamepadState, speed_step)::Int32
     return LT > 0.4 ? (RT > 0.4 ? 0 : -Z_VELOCITY[speed_step]) :
                       (RT > 0.4 ? Z_VELOCITY[speed_step] : 0)
 end
+
+# wrapper functions for RPCs
 
 function set_z_position!(pos::Integer)
     @spawnat ZEISS_PID moveto(pos)
@@ -61,33 +59,24 @@ function command_reducer()
     while isready(COMMANDS)
         push!(cmd_queue, take!(COMMANDS))
     end
-    
-    current = fetch_state()
-
+    current = fetch_state() # retrieve state in all cases
     if length(cmd_queue > 0)
-
         cmds = getindex.(cmd_queue, 1)
         args = getindex.(cmd_queue, 2)
-
         # Reducer logic
         if stop_zaxis ∈ cmds
-            stop_zaxis() # explicit stop is an emergency; send regardless of reported state
-                         # and dump all other commands
+            stop_zaxis() # explicit stop is an emergency; send always + dump other commands
         else
-            
             for (i, v) in enumerate(cmds)
                 v == get_position && getposition()
-                
                 if v == set_z_position
                     current.moving && stop_zaxis()
                     set_z_position(args[i])
                     break
-                elseif v == velocity && !current.move_in_progress # we ignore the controller when making a set position move
-                    args[i] !== current.velocity && velocity(args[i])
+                elseif v == velocity && !current.step_in_progress # we ignore the controller when making a set position move
+                    args[i] !== current.velocity && velocity(args[i]) # modify if we aren't at the correct velocity
                 end
             end
-
-
         end
     end
     

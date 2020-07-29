@@ -17,9 +17,10 @@ const perfusion_switch = "EIO1"
 
 # We can't readout the state of TDAC, so we just keep track of whatever value we
 # set it to ourselves.
-CURRENT_PRESSURE = 0
+const CURRENT_PRESSURE = Ref{Int64}(0)
 
 function __init__()
+    # initialize to safe values
     write_digital(perfusion_switch, 0)
     write_digital(vac_supply, 1)
     write_digital(pressure_supply, 0)
@@ -30,8 +31,8 @@ function __init__()
 end
 
 function set_pressure(value)
-    if value !== CURRENT_PRESSURE
-        global CURRENT_PRESSURE = value
+    if value !== CURRENT_PRESSURE[]
+        global CURRENT_PRESSURE[] = value
         if value == 0
             write_analog(positive_cmd, 0.0)
             write_analog(negative_cmd, 0.0)

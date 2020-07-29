@@ -1,9 +1,9 @@
 
 module Gamepad
 
-import CImGui.GLFWBackend.GLFW.JOYSTICK_1
+import ..CImGui.GLFWBackend.GLFW: JOYSTICK_1, GetJoystickAxes, GetJoystickButtons
 
-export poll_gamepad
+export poll_gamepad, GamepadState
 
 struct Axes
     x::Float32
@@ -57,7 +57,7 @@ struct GamepadState
 end
 
 function poll_gamepad(id = JOYSTICK_1)
-    return GamepadState(GLFW.GetJoystickAxes(id), GLFW.GetJoystickButtons(id))
+    return GamepadState(GetJoystickAxes(id), GetJoystickButtons(id))
 end
 
 end

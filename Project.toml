@@ -5,4 +5,7 @@ version = "0.1.0"
 
 [deps]
 CImGui = "5d785b6c-b76f-510e-a07c-3070796c7e87"
+DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
+Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 LabJack = "961e5755-77e0-4113-a782-3f305e67c3ba"
+LibUMP = "fa601767-e3df-417c-a897-74c012555265"

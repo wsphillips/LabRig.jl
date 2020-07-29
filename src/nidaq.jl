@@ -3,7 +3,9 @@ module RemoteNIDAQ
 
 using ..Distributed, ..DataStructures
 
-global REMOTE_DAQ_PID
+global NIDAQ_PID
+
+export RemoteRecording, stage, start_recording
 
 struct RemoteRecording
     channels::Dict{Int64, String}
@@ -18,24 +20,20 @@ struct RemoteRecording
         history_samples = history_seconds * fs * channels
         signal = CircularBuffer{Float64}(history_samples)
         fill!(signal, 0.0)
-        r_chan = RemoteChannel(() -> Channel{Vector{Float64}}(500), REMOTE_DAQ_PID)    
+        r_chan = RemoteChannel(() -> Channel{Vector{Float64}}(500), NIDAQ_PID)    
         new(channels, fs, refresh, history_seconds, history_samples, signal, r_chan)
     end
 end
 
 function init(pid)
-    if !@isdefined REMOTE_DAQ_PID
-        global REMOTE_DAQ_PID = pid
+    if !@isdefined NIDAQ_PID
+        global NIDAQ_PID = pid
     end
-    wait(@spawnat pid @eval using NIDAQ, Distributed)
-end
-
-function assign_proc(pid)
-    global REMOTE_DAQ_PID = pid
+    wait(@spawnat pid @eval using NIDAQ)
 end
 
 function stage(rec::RemoteRecording)
-    pid = REMOTE_DAQ_PID
+    pid = NIDAQ_PID
     @sync begin
         @spawnat pid @eval (result = Float64[]; dev = DefaultDev(); task = DAQTask{AI}())
         for (chan, name) in rec.channels
@@ -47,7 +45,7 @@ end
 
 function start_recording(rec::RemoteRecording)
     # record!
-    wait(@spawnat nidaq_pid record!(result, task; remote = r_chan))
+    wait(@spawnat nidaq_pid record!(result, task; remote = rec.r_chan))
 end
 
 end # module
