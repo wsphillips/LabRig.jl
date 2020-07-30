@@ -93,7 +93,6 @@ function run_main_loop(; window = IMGUI_WINDOW)
         
             while !GLFW.WindowShouldClose(window)
                 GLFW.PollEvents()
-                # start the Dear ImGui frame
                 new_frame!()                
 
                 # NIDAQ data retrieval

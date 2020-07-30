@@ -1,15 +1,16 @@
 module LabRig
 
-using CImGui, DataStructures
 using Distributed
+if myid() == 1
+    using CImGui, DataStructures
 
-include("gamepad.jl")
-include("manipulator.jl")
-include("pressure.jl")
-
+    include("gamepad.jl")
+    include("manipulator.jl")
+    include("pressure.jl")
+end
 
 #include("remote.jl")
-#include("nidaq.jl")
+include("nidaq.jl")
 #=
 const SPEED_STEP_MAX = 6
 

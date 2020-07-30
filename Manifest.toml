@@ -151,6 +151,19 @@ git-tree-sha1 = "326957556e9cc9253615114c04bb0096a2a69bb8"
 uuid = "66fc600b-dfda-50eb-8b99-91cfa97b1301"
 version = "1.1.2"
 
+[[NIDAQ]]
+deps = ["CEnum", "DataStructures", "Distributed", "InteractiveUtils", "Libdl", "OffsetArrays", "OrderedCollections", "PrettyTables"]
+git-tree-sha1 = "569b2144b0779ae182c4ccf79d33d7d55c037995"
+repo-rev = "master"
+repo-url = "https://github.com/wsphillips/NIDAQ.jl"
+uuid = "66b72792-1abf-55ab-8064-6e9051317175"
+version = "0.5.0+"
+
+[[OffsetArrays]]
+git-tree-sha1 = "2066e16af994955287f2e03ba1d9e890eb43b0dd"
+uuid = "6fe1bfb0-de20-5000-8ca7-80f57d26f881"
+version = "1.1.2"
+
 [[OrderedCollections]]
 git-tree-sha1 = "293b70ac1780f9584c89268a6e2a560d938a7065"
 uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
