@@ -20,6 +20,12 @@ git-tree-sha1 = "5ed6fce57d764b102564af81288d0c327e6cba65"
 uuid = "7dd61d3b-0da5-5c94-bbf9-a0296c6e3925"
 version = "1.77.0+0"
 
+[[CImPlot_jll]]
+deps = ["CImGui_jll", "Libdl", "Pkg"]
+git-tree-sha1 = "d58b73abeea898b7b09e1a84f07ac51092ad4915"
+uuid = "278f1f02-c5a0-563f-9174-e8b244dda450"
+version = "0.3.0+0"
+
 [[CSyntax]]
 deps = ["CEnum"]
 git-tree-sha1 = "50a830730a04cd9ab8468a60b93ac2ca9d34ba17"
@@ -38,9 +44,9 @@ version = "1.3.0"
 
 [[DataStructures]]
 deps = ["InteractiveUtils", "OrderedCollections"]
-git-tree-sha1 = "edad9434967fdc0a2631a65d902228400642120c"
+git-tree-sha1 = "88d48e133e6d3dd68183309877eac74393daa7eb"
 uuid = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
-version = "0.17.19"
+version = "0.17.20"
 
 [[DataValueInterfaces]]
 git-tree-sha1 = "bfc1187b79289637fa0ef6d4436ebdfe6905cbd6"
@@ -73,6 +79,12 @@ git-tree-sha1 = "3b04f1dd73f0efa81298a76c9515f306df06f613"
 uuid = "0656b61e-2033-5cc2-a64a-77c0f6c09b89"
 version = "3.3.2+0"
 
+[[ImPlot]]
+deps = ["CEnum", "CImGui", "CImPlot_jll"]
+path = "/home/wikphi/git/ImPlot.jl/"
+uuid = "e8efc688-5342-4ad4-b4ba-9025a731b363"
+version = "0.3.0"
+
 [[InteractiveUtils]]
 deps = ["Markdown"]
 uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
@@ -97,6 +109,12 @@ version = "0.1.0"
 [[LibGit2]]
 deps = ["Printf"]
 uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
+
+[[LibSerialPort]]
+deps = ["Libdl", "libserialport_jll"]
+git-tree-sha1 = "14bd5bdd156c834e82b52beca912dffe48e2455f"
+uuid = "a05a14c7-6e3b-5ba9-90a2-45558833e1df"
+version = "0.3.0"
 
 [[LibUMP]]
 deps = ["CEnum"]
@@ -155,7 +173,7 @@ version = "1.1.2"
 deps = ["CEnum", "DataStructures", "Distributed", "InteractiveUtils", "Libdl", "OffsetArrays", "OrderedCollections", "PrettyTables"]
 git-tree-sha1 = "569b2144b0779ae182c4ccf79d33d7d55c037995"
 repo-rev = "master"
-repo-url = "https://github.com/wsphillips/NIDAQ.jl"
+repo-url = "/home/wikphi/git/NIDAQ.jl"
 uuid = "66b72792-1abf-55ab-8064-6e9051317175"
 version = "0.5.0+"
 
@@ -169,6 +187,14 @@ git-tree-sha1 = "293b70ac1780f9584c89268a6e2a560d938a7065"
 uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 version = "1.3.0"
 
+[[PVCAM]]
+deps = ["CEnum"]
+git-tree-sha1 = "52c81f840d7ea82339fdea9b6f74515236504577"
+repo-rev = "wsp/cleanup"
+repo-url = "/home/wikphi/git/PVCAM.jl"
+uuid = "32c956a4-9d39-4af4-bbae-99dba85852d1"
+version = "0.1.0"
+
 [[Parameters]]
 deps = ["OrderedCollections", "UnPack"]
 git-tree-sha1 = "38b2e970043613c187bd56a995fe2e551821eb4a"
@@ -177,9 +203,9 @@ version = "0.12.1"
 
 [[Parsers]]
 deps = ["Dates", "Test"]
-git-tree-sha1 = "10134f2ee0b1978ae7752c41306e131a684e1f06"
+git-tree-sha1 = "8077624b3c450b15c087944363606a6ba12f925e"
 uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
-version = "1.0.7"
+version = "1.0.10"
 
 [[Pkg]]
 deps = ["Dates", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "UUIDs"]
@@ -203,6 +229,11 @@ uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 deps = ["Serialization"]
 uuid = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 
+[[RecipesBase]]
+git-tree-sha1 = "58de8f7e33b7fda6ee39eff65169cd1e19d0c107"
+uuid = "3cdcf5f2-1ef4-517c-9805-6587b60abb01"
+version = "1.0.2"
+
 [[Reexport]]
 deps = ["Pkg"]
 git-tree-sha1 = "7b1d07f411bc8ddb7977ec7f377b97b158514fe0"
@@ -217,6 +248,14 @@ uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 
 [[Sockets]]
 uuid = "6462fe0b-24de-5631-8697-dd941f90decc"
+
+[[SparseArrays]]
+deps = ["LinearAlgebra", "Random"]
+uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+
+[[Statistics]]
+deps = ["LinearAlgebra", "SparseArrays"]
+uuid = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 
 [[StructTypes]]
 deps = ["Dates", "UUIDs"]
@@ -239,6 +278,12 @@ version = "1.0.5"
 [[Test]]
 deps = ["Distributed", "InteractiveUtils", "Logging", "Random"]
 uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[[ThreadPools]]
+deps = ["Printf", "RecipesBase", "Statistics"]
+git-tree-sha1 = "4809b7746342115d4e20c4ccd1a34b52967cb43d"
+uuid = "b189fb0b-2eb5-4ed4-bc0c-d34c51242431"
+version = "1.1.3"
 
 [[UUIDs]]
 deps = ["Random", "SHA"]
@@ -342,8 +387,22 @@ git-tree-sha1 = "b6e7d70f5fc9e3fde505539194c8caaab3c40ebf"
 uuid = "c5fb5394-a638-5e4d-96e5-b29de1b5cf10"
 version = "1.4.0+1"
 
+[[ZeissCAN29]]
+deps = ["CEnum", "DataStructures", "LibSerialPort"]
+git-tree-sha1 = "a9626266fe0b6067aa153e5036567dd845698188"
+repo-rev = "master"
+repo-url = "/home/wikphi/git/ZeissCAN29.jl"
+uuid = "9805570f-ef35-4d2f-b36a-1937b5ad60dd"
+version = "0.1.0"
+
 [[Zlib_jll]]
 deps = ["Libdl", "Pkg"]
-git-tree-sha1 = "622d8b6dc0c7e8029f17127703de9819134d1b71"
+git-tree-sha1 = "d5bba6485811931e4b8958e2d7ca3738273ac468"
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
-version = "1.2.11+14"
+version = "1.2.11+15"
+
+[[libserialport_jll]]
+deps = ["Libdl", "Pkg"]
+git-tree-sha1 = "508c6ce3caf1d336954a93991d09b3eb1837db03"
+uuid = "220460dc-b50e-5ed0-8176-09b0fd261e90"
+version = "0.1.2+0"

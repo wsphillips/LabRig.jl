@@ -1,51 +1,65 @@
 
 module GUI
 
-using CImGui
-using CImGui.CSyntax
-using CImGui.CSyntax.CStatic
-using CImGui.GLFWBackend
-using CImGui.OpenGLBackend
-using CImGui.GLFWBackend.GLFW
-using CImGui.OpenGLBackend.ModernGL
-using Printf
-using CImPlot
+using ..CImGui
+using ..CImGui.CSyntax
+using ..CImGui.CSyntax.CStatic
+using ..CImGui.GLFWBackend
+using ..CImGui.OpenGLBackend
+using ..CImGui.GLFWBackend.GLFW
+using ..CImGui.OpenGLBackend.ModernGL
+using ..Gamepad, ..Zeiss, ..Pressure, ..Manipulator, ..DAQ, ..Camera
+using ImPlot
 
-using ..Gamepad
-
-global IMGUI_WINDOW
-global IMGUI_CONTEXT
+import ThreadPools.@tspawnat
+import CImGui: ImVec2, ImVec4, ImTextureID
+import ..ZEISS_TID
+# Globals
+global IMGUI_WINDOW #TODO: as const ref
+global IMGUI_CONTEXT #TODO: as const ref
 const GLSL_VERSION = 130
 const BACKGROUND_COLOR = Cfloat[0.45, 0.55, 0.60, 1.00]
+const PRESSURE_TID = 2
+const FRAME_STEP = Threads.Condition()
+const SPEED_STEP_MAX = 6
+const SPEED_STEP = Ref{Int64}(1)
 
-# setup GLFW error callback
+# GLFW error callback
 error_callback(err::GLFW.GLFWError) = @error "GLFW ERROR: code $(err.code) msg: $(err.description)"
 
-function __init__()
-    # These should only need to be set once
+function step_notify(c::Threads.Condition)
+    lock(c)
+    try
+        notify(c)
+    finally
+        unlock(c)
+    end
+    return
+end
+
+function inc_speed()
+    SPEED_STEP[] == SPEED_STEP_MAX && return
+    SPEED_STEP[] += 1
+end
+
+function dec_speed()
+    SPEED_STEP[] == 1 && return
+    SPEED_STEP[] -= 1
+end
+
+function init_glfw()
     GLFW.WindowHint(GLFW.CONTEXT_VERSION_MAJOR, 3)
     GLFW.WindowHint(GLFW.CONTEXT_VERSION_MINOR, 0)
     GLFW.SetErrorCallback(error_callback)
 end
 
-function setup_gui()
-    # setup ImGui context
+function setup()
     global IMGUI_CONTEXT = CImGui.CreateContext()
-    # set ImGui style
     CImGui.StyleColorsDark()
-
-    # load Fonts
-    fonts_dir = joinpath(@__DIR__, "..", "fonts")
-    fonts = CImGui.GetIO().Fonts
-    CImGui.AddFontFromFileTTF(fonts, joinpath(fonts_dir, "Roboto-Medium.ttf"), 16)
-
-    # create window
     global IMGUI_WINDOW = GLFW.CreateWindow(1280, 720, "LabRig")
     @assert IMGUI_WINDOW != C_NULL
     GLFW.MakeContextCurrent(IMGUI_WINDOW)
-    GLFW.SwapInterval(1)  # enable vsync
-
-    # setup Platform/Renderer bindings
+    GLFW.SwapInterval(1)  # enable vsync; 0 for disabled
     ImGui_ImplGlfw_InitForOpenGL(IMGUI_WINDOW, true)
     ImGui_ImplOpenGL3_Init(GLSL_VERSION)
 end
@@ -57,25 +71,16 @@ function new_frame!()
 end
 
 function render!(window = IMGUI_WINDOW, clear_color = BACKGROUND_COLOR)
-    # tell imgui to generate draw data
     CImGui.Render()
-    
-    # get the current window size from GLFW, resize the OpenGL viewport and fill
-    # it with the clear color (background color)
     GLFW.MakeContextCurrent(window)
     display_w, display_h = GLFW.GetFramebufferSize(window)
     glViewport(0, 0, display_w, display_h)
     glClearColor(clear_color...)
     glClear(GL_COLOR_BUFFER_BIT)
-    
-    # fetch and render the draw data with OpenGL backend
     ImGui_ImplOpenGL3_RenderDrawData(CImGui.GetDrawData())
-
-    # swap to newly rendered buffer
     GLFW.MakeContextCurrent(window)
     GLFW.SwapBuffers(window)
 end
-
 
 function shutdown!(; window = IMGUI_WINDOW, ctx = IMGUI_CONTEXT)
     ImGui_ImplOpenGL3_Shutdown()
@@ -84,138 +89,103 @@ function shutdown!(; window = IMGUI_WINDOW, ctx = IMGUI_CONTEXT)
     GLFW.DestroyWindow(window)
 end
 
-function run_main_loop(; window = IMGUI_WINDOW)
+function run_loop(; window = IMGUI_WINDOW)
+
+    camera_buffer = Camera.polled_cont!()
+    GC.@preserve camera_buffer begin
     @async begin
-        # Main program loop
         try
+            @tspawnat PRESSURE_TID Pressure.stream_out(FRAME_STEP)
             use_gamepad = false
-            gamepad_cache = poll_gamepad()
-        
+            gamepad_cache = Gamepad.poll()
+            Z_HOME = 0
+            Z_WORK = 0
+            tex_id = Camera.gen_textures(1)[1]
+            indexes = Camera.latest_frame(camera_buffer)
+            Camera.load_texture(tex_id, camera_buffer[indexes], 1200, 1200)
+            daq_recording = DAQ.Recording()
+            data = zeros(length(daq_recording.signal))
+            daq_recording()
             while !GLFW.WindowShouldClose(window)
                 GLFW.PollEvents()
                 new_frame!()                
-
-                # NIDAQ data retrieval
-                data = take!(r_chan)
-                append!(signal, data)
-                xii_sig = Float32.(signal[1:20:end])
-                vm_sig = Float32.(signal[2:20:end])
+                gamepad = Gamepad.poll()
                 
-                # Gamepad state update
-                gamepad = poll_gamepad()
-               
-                # GUI Windows
+                # Camera live view
+                CImGui.Begin("Live View")
+                indexes = Camera.latest_frame(camera_buffer)
+                Camera.reload_texture(tex_id, camera_buffer[indexes], 1200, 1200)
+                CImGui.Image(ImTextureID(Int(tex_id)), ImVec2(1200,1200), ImVec2(0,0), ImVec2(1,1),
+                             ImVec4(1.0,1.0,1.0,1.0), ImVec4(1,1,1,1))
+                CImGui.End()
 
                 # Pressure control 
-
                 @cstatic f=Cint(0) begin
-                    set_pressure(f)
                     CImGui.Begin("Pressure control.")
-                    CImGui.Text("Pressure control")  # display some text
-                    @c CImGui.DragInt("kPa", &f, 0.5, -20, 100)  # edit 1 float using a slider from 0 to 1
-                    
-                    if (CImGui.Button("On Cell!"))
-                        f = Cint(-1)
-                    end
-        
-                    if (CImGui.Button("NEUTRAL"))
-                        f = Cint(0)
-                    end
-        
-                    if (CImGui.Button("Bath mode"))
-                        f = Cint(20)
-                    end
-        
+                    @c CImGui.DragInt("kPa", &f, 0.5, -20, 100)
+                    CImGui.Button("On Cell!") && (f = Cint(-1))
+                    CImGui.Button("NEUTRAL") && (f = Cint(0))
+                    CImGui.Button("Bath mode") && (f = Cint(20))
+                    #build an interface for sending ramps/transitions
+                    put!(Pressure.STREAM_CHANNEL, [f])
                     CImGui.End()
                 end
-        
-                @cstatic position=Cint(0) home=Cint(0) work=Cint(0) velocity=Cint(0) moving = false begin
-                    (position, velocity, moving) = fetch(@spawnat zeiss_pid get_zeiss_state())
-                    CImGui.Begin("Focus control")
-
-                    @c CImGui.Checkbox("Use gamepad", &use_gamepad) 
-
-                    CImGui.Button("Position: $position") && ZeissRemote.get_position()
-                    CImGui.Button("Set Home: $home") && (home = position)
-                    CImGui.Button("Set Work: $work") && (work = position)
-                    CImGui.Button("Go Home") && ZeissRemote.zposition!(home)
-                    CImGui.Button("Go Work") && ZeissRemote.zposition!(work)
-                    
-                    if !use_gamepad
-                    @c CImGui.DragInt("Axis Velocity", &velocity, 1.0, -2000, 2000)
-                    else
-                        CImGui.Text("Z Axis Velocity: $velocity")
-                        CImGui.Text("Speed step: $speed_step")
-                        if gamepad.DPAD.left && !gamepad_cache.DPAD.left
-                            dec_speed()
-                        end
-                        if gamepad.DPAD.right && !gamepad_cache.DPAD.right
-                            inc_speed()
-                        end
-                        update_ump!(gamepad)
-                        if gamepad.button.B
-                            @spawnat zeiss_pid stop!()
-                        else
-                            new_velocity = update_focus!(gamepad)
-                        end
-                        @spawnat zeiss_pid set_velocity(Int32(new_velocity*100))
-                    end
-                    
-                    if (CImGui.Button("STOPPP!!!!!"))
-                        @spawnat zeiss_pid stop!()
-                    end
-        
-                    CImGui.End()
+                # Focus control
+                CImGui.Begin("Focus control")
+                position, velocity = fetch(@tspawnat ZEISS_TID Zeiss.get_zeiss_state())
+                @c CImGui.Checkbox("Use gamepad", &use_gamepad) 
+                CImGui.Text("Position: $position")
+                CImGui.Button("Set Home: $Z_HOME") && (Z_HOME = position)
+                CImGui.Button("Set Work: $Z_WORK") && (Z_WORK = position)
+                CImGui.Button("Go Home") && Zeiss.moveto(Z_HOME)
+                CImGui.Button("Go Work") && Zeiss.moveto(Z_WORK)
+                CImGui.Button("STOPPP!!!!!") && Zeiss.stop!()
+                if use_gamepad
+                    CImGui.Text("Z Axis Velocity: $velocity")
+                    CImGui.Text("Speed step: $(SPEED_STEP[])")
+                    gamepad.DPAD.left && !gamepad_cache.DPAD.left && dec_speed()
+                    gamepad.DPAD.right && !gamepad_cache.DPAD.right && inc_speed()
+                    gamepad.button.B ? Zeiss.stop!() : new_velocity = Zeiss.update_velocity(gamepad, SPEED_STEP[])
+                    Zeiss.set_velocity(new_velocity)
+                    Manipulator.step!(gamepad)
                 end
-                
+                CImGui.End()
                 # NIDAQ data plotting
-
+                data .= fetch(@tspawnat DAQ.NIDAQ_TID[] collect(daq_recording.signal))
                 CImGui.Begin("Vm Data")
-                if (CImPlot.BeginPlot("Vm Data", "","", CImGui.ImVec2(-1,700),
-                                      CImPlot.LibCImPlot.ImPlotFlags_Default,
-                                      CImPlot.LibCImPlot.ImPlotAxisFlags_Default,
-                                      CImPlot.LibCImPlot.ImPlotAxisFlags_Default))
-
-                    CImPlot.Plot(vm_sig, offset = 0, stride = 1, label = "Vm")
-
-                    CImPlot.EndPlot()
+                if ImPlot.BeginPlot("Vm Data", "","", ImVec2(-1,700))
+                    # downsampling to 2kHz display
+                    ImPlot.PlotLine(1:20:length(data), data, label = "Vm")
+                    ImPlot.EndPlot()
                 end
                 CImGui.End()
-               
                 CImGui.Begin("XII Data")
-                if (CImPlot.BeginPlot("XII Data", "", "", CImGui.ImVec2(-1,400),
-                                      CImPlot.LibCImPlot.ImPlotFlags_Default,
-                                      CImPlot.LibCImPlot.ImPlotAxisFlags_Default,
-                                      CImPlot.LibCImPlot.ImPlotAxisFlags_Default))
-
-                    CImPlot.Plot(xii_sig, offset = 0, stride = 1, label = "XII")
-
-                    CImPlot.EndPlot()
+                if ImPlot.BeginPlot("XII Data", "", "", ImVec2(-1,400))
+                    #downsampling to 1kHz display
+                    ImPlot.PlotLine(2:40:length(data), data, label = "XII")
+                    ImPlot.EndPlot()
                 end
                 CImGui.End()
-                
                 # cache gamepad state
                 gamepad_cache = gamepad
-            
+                # trigger pipelines on other threads
+                step_notify(FRAME_STEP)
                 render!()
-
             end # main loop
-
         catch e
             @error "Error in renderloop!" exception=e
             Base.show_backtrace(stderr, catch_backtrace())
         finally
             shutdown!()
-            @spawnat nidaq_pid stop(task)
+            DAQ.stop(daq_recording.task)
         end # try-catch-finally
-
     end # async block
-
+end # GC perserve
 end # function
 
-function launch_gui()
-    setup_gui()
-    run_main_loop()
+function launch!()
+    setup()
+    run_loop()
 end
 
 end # module

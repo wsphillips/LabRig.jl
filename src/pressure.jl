@@ -1,9 +1,7 @@
 
-module PressureClamp
+module Pressure
 
 using LabJack
-
-export set_pressure
 
 # LabJack digital/analog registers
 const positive_cmd = "TDAC0"
@@ -15,11 +13,16 @@ const pressure_delivery = "EIO7"
 const valves = "EIO_STATE" 
 const perfusion_switch = "EIO1"
 
-# We can't readout the state of TDAC, so we just keep track of whatever value we
-# set it to ourselves.
-const CURRENT_PRESSURE = Ref{Int64}(0)
+# We can't readout the values of TDAC, so we cache state instead
+const CURRENT_PRESSURE = Threads.Atomic{Int32}(0)
+const STREAM_CHANNEL = Channel{Vector{Int32}}(250)
+const RUN_STREAM = Threads.Atomic{Bool}(true)
 
-function __init__()
+function get_pressure()
+    return CURRENT_PRESSURE[]
+end
+
+function init_levels()
     # initialize to safe values
     write_digital(perfusion_switch, 0)
     write_digital(vac_supply, 1)
@@ -30,9 +33,29 @@ function __init__()
     write_analog(negative_cmd, 0.0)
 end
 
-function set_pressure(value)
+function initialize()
+    LabJack.init_default()
+    init_levels()
+end
+
+function stream_out(cycle_lock::Threads.Condition)
+    @async while RUN_STREAM[]
+        pressures = take!(STREAM_CHANNEL)
+        for val in pressures
+            lock(cycle_lock)
+            try
+                wait(cycle_lock)
+                set(val)
+            finally
+                unlock(cycle_lock)
+            end
+        end
+    end
+end
+
+function set(value)
     if value !== CURRENT_PRESSURE[]
-        global CURRENT_PRESSURE[] = value
+        Threads.atomic_xchg!(CURRENT_PRESSURE, value)
         if value == 0
             write_analog(positive_cmd, 0.0)
             write_analog(negative_cmd, 0.0)
