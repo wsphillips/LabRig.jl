@@ -91,8 +91,6 @@ end
 
 function run_loop(; window = IMGUI_WINDOW)
 
-    camera_buffer = Camera.polled_cont!()
-    GC.@preserve camera_buffer begin
     @async begin
         try
             @tspawnat PRESSURE_TID Pressure.stream_out(FRAME_STEP)
@@ -101,8 +99,8 @@ function run_loop(; window = IMGUI_WINDOW)
             Z_HOME = 0
             Z_WORK = 0
             tex_id = Camera.gen_textures(1)[1]
-            indexes = Camera.latest_frame(camera_buffer)
-            Camera.load_texture(tex_id, camera_buffer[indexes], 1200, 1200)
+            frame = Camera.PVCAM.latest_frame()
+            Camera.load_texture(tex_id, frame, 1200, 1200)
             daq_recording = DAQ.Recording()
             data = zeros(length(daq_recording.signal))
             daq_recording()
@@ -113,8 +111,8 @@ function run_loop(; window = IMGUI_WINDOW)
                 
                 # Camera live view
                 CImGui.Begin("Live View")
-                indexes = Camera.latest_frame(camera_buffer)
-                Camera.reload_texture(tex_id, camera_buffer[indexes], 1200, 1200)
+                frame .= Camera.latest_frame()
+                Camera.reload_texture(tex_id, frame, 1200, 1200)
                 CImGui.Image(ImTextureID(Int(tex_id)), ImVec2(1200,1200), ImVec2(0,0), ImVec2(1,1),
                              ImVec4(1.0,1.0,1.0,1.0), ImVec4(1,1,1,1))
                 CImGui.End()
@@ -180,7 +178,6 @@ function run_loop(; window = IMGUI_WINDOW)
             DAQ.stop(daq_recording.task)
         end # try-catch-finally
     end # async block
-end # GC perserve
 end # function
 
 function launch!()
