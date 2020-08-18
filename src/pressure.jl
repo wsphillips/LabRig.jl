@@ -46,6 +46,7 @@ function stream_out(cycle_lock::Threads.Condition)
             try
                 wait(cycle_lock)
                 set(val)
+                GC.safepoint()
             finally
                 unlock(cycle_lock)
             end
