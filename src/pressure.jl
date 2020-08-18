@@ -1,4 +1,3 @@
-
 module Pressure
 
 using LabJack
@@ -20,6 +19,7 @@ const RUN_STREAM = Threads.Atomic{Bool}(true)
 
 atexit() do
     RUN_STREAM[] = false
+    isopen(STREAM_CHANNEL) && close(STREAM_CHANNEL)
 end
 
 function get_pressure()
