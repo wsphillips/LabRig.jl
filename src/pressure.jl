@@ -18,6 +18,10 @@ const CURRENT_PRESSURE = Threads.Atomic{Int32}(0)
 const STREAM_CHANNEL = Channel{Vector{Int32}}(250)
 const RUN_STREAM = Threads.Atomic{Bool}(true)
 
+atexit() do
+    RUN_STREAM[] = false
+end
+
 function get_pressure()
     return CURRENT_PRESSURE[]
 end
