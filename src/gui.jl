@@ -128,7 +128,9 @@ function run_loop(; window = IMGUI_WINDOW)
                 CImGui.Button("Bath mode") && (f = Cint(20))
                 #build an interface for sending ramps/transitions
                 if CImGui.Button("Coax Cell")
-                    Pressure.coaxcell(5.0, 50, 3)
+                    Pressure.coaxcell(5.0, 50, 3, 3)
+                elseif CImGui.Button("Rupture cell")
+                    Pressure.attempt_break(-30, 50, 1, 3)
                 elseif isempty(Pressure.STREAM_CHANNEL)
                     put!(Pressure.STREAM_CHANNEL, [f])
                 end

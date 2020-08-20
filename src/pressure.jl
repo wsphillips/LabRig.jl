@@ -22,9 +22,15 @@ atexit() do
     isopen(STREAM_CHANNEL) && close(STREAM_CHANNEL)
 end
 
-function coaxcell(amplitude, fs, seconds_per_cycle)
+function coaxcell(amplitude, fs, seconds_per_cycle, repetitions)
     a = range(-π/2, 3π/2, length = fs * seconds_per_cycle)
-    wave = Float32.(repeat(sin.(a) .* amplitude, outer=3))
+    wave = Float32.(repeat(sin.(a) .* amplitude, outer=repetitions))
+    put!(STREAM_CHANNEL, wave)
+end
+
+function attempt_break(amplitude, fs, seconds_per_cycle, repetitions)
+    a = range(0, amplitude, length = fs * seconds_per_cycle)
+    wave = Float32.(repeat(vec(a), outer=repetitions))
     put!(STREAM_CHANNEL, wave)
 end
 
