@@ -10,11 +10,12 @@ mutable struct ImagePipeline
     cdf::Vector{Int32}
     out::Array{<:Union{UInt8,UInt16}}
     bitdepth::Integer
-    function ImagePipeline(x::Array{<:Union{UInt8,UInt16}}; bitdepth = 2^12)
+    target_bitdepth::Integer
+    function ImagePipeline(x::Array{<:Union{UInt8,UInt16}}; bitdepth = 2^12, target_bitdepth = 2^16)
         histogram = zeros(Int32, bitdepth)
         cdf = zeros(Int32, bitdepth)
         out = similar(x)
-        new(histogram, cdf, out, bitdepth)
+        new(histogram, cdf, out, bitdepth, target_bitdepth)
     end
 end
 
@@ -52,13 +53,13 @@ function equalize!(img, out, cdf, histogram, bitdepth)
     pixels = length(img)
     cdf .= round.(Int, cumsum(histogram) ./ pixels .* (bitdepth - 1))
     for i in 1:length(img)
-        out[i] = ceil(cdf[img[i]+1])
+        out[i] = cdf[img[i]+1]
     end
 end
 
 function (pipe::ImagePipeline)(img::Array)
     make_histogram!(img, pipe.histogram)
-    equalize!(img, pipe.out, pipe.cdf, pipe.histogram, pipe.bitdepth)
+    equalize!(img, pipe.out, pipe.cdf, pipe.histogram, pipe.target_bitdepth)
 end
 
 end

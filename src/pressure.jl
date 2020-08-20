@@ -13,13 +13,19 @@ const valves = "EIO_STATE"
 const perfusion_switch = "EIO1"
 
 # We can't readout the values of TDAC, so we cache state instead
-const CURRENT_PRESSURE = Threads.Atomic{Int32}(0)
-const STREAM_CHANNEL = Channel{Vector{Int32}}(250)
+const CURRENT_PRESSURE = Threads.Atomic{Float32}(0)
+const STREAM_CHANNEL = Channel{Vector{Float32}}(250)
 const RUN_STREAM = Threads.Atomic{Bool}(true)
 
 atexit() do
     RUN_STREAM[] = false
     isopen(STREAM_CHANNEL) && close(STREAM_CHANNEL)
+end
+
+function coaxcell(amplitude, fs, seconds_per_cycle)
+    a = range(-π/2, 3π/2, length = fs * seconds_per_cycle)
+    wave = Float32.(repeat(sin.(a) .* amplitude, outer=3))
+    put!(STREAM_CHANNEL, wave)
 end
 
 function get_pressure()
@@ -69,7 +75,7 @@ function set(value)
         elseif value > 0
             read_digital(valves)[7] !== 0 && write_digital(vac_delivery, 0)
             read_digital(valves)[8] !== 1 && write_digital(pressure_delivery, 1)
-            write_analog(positive_cmd, value/10)
+            write_analog(positive_cmd, value/5)
         elseif value < 0
             read_digital(valves)[7] !== 1 && write_digital(vac_delivery, 1)
             read_digital(valves)[8] !== 0 && write_digital(pressure_delivery, 0)

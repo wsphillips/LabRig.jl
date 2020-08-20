@@ -99,6 +99,8 @@ function run_loop(; window = IMGUI_WINDOW)
         Z_WORK = 0
         tex_id = Camera.gen_textures(1)[1]
         frame = Camera.PVCAM.initialize_cont()
+        image_pipe = Camera.ImagePipeline(frame)
+        pipe_job = @tspawnat 6 image_pipe(frame)
         Camera.load_texture(tex_id, frame, 1200, 1200)
         data = zeros(length(daq_recording.signal))
         daq_recording()
@@ -110,8 +112,8 @@ function run_loop(; window = IMGUI_WINDOW)
             # Camera live view
             CImGui.Begin("Live View")
             # maybe we should wrap this in a try-catch to not crash on dropped frame queries?
-            frame .= Camera.latest_frame()
-            Camera.reload_texture(tex_id, frame, 1200, 1200)
+            wait(pipe_job)
+            Camera.reload_texture(tex_id, image_pipe.out, 1200, 1200)
             CImGui.Image(ImTextureID(Int(tex_id)), ImVec2(1200,1200), ImVec2(0,0), ImVec2(1,1),
                          ImVec4(1.0,1.0,1.0,1.0), ImVec4(1,1,1,1))
             CImGui.End()
@@ -119,12 +121,17 @@ function run_loop(; window = IMGUI_WINDOW)
             # Pressure control 
             @cstatic f=Cint(0) begin
                 CImGui.Begin("Pressure control.")
+                CImGui.Text("Current Presure: $(Pressure.CURRENT_PRESSURE[])")
                 @c CImGui.DragInt("kPa", &f, 0.5, -20, 100)
                 CImGui.Button("On Cell!") && (f = Cint(-1))
                 CImGui.Button("NEUTRAL") && (f = Cint(0))
                 CImGui.Button("Bath mode") && (f = Cint(20))
                 #build an interface for sending ramps/transitions
-                put!(Pressure.STREAM_CHANNEL, [f])
+                if CImGui.Button("Coax Cell")
+                    Pressure.coaxcell(5.0, 50, 3)
+                elseif isempty(Pressure.STREAM_CHANNEL)
+                    put!(Pressure.STREAM_CHANNEL, [f])
+                end
                 CImGui.End()
             end
             # Focus control
@@ -167,6 +174,8 @@ function run_loop(; window = IMGUI_WINDOW)
             gamepad_cache = gamepad
             # trigger pipelines on other threads
             step_notify(FRAME_STEP)
+            frame .= Camera.latest_frame()
+            pipe_job = @tspawnat 6 image_pipe(frame)
             render!()
             yield()
         end # main loop
