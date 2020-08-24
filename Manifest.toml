@@ -10,9 +10,9 @@ version = "0.4.1"
 
 [[CImGui]]
 deps = ["CImGui_jll", "CSyntax", "GLFW", "Libdl", "ModernGL"]
-git-tree-sha1 = "2fe8eafb7ca813cc085a2c842903eb578dab048a"
+git-tree-sha1 = "9f415a21cfd105cc5934832719bfcaab386f1240"
 uuid = "5d785b6c-b76f-510e-a07c-3070796c7e87"
-version = "1.77.0"
+version = "1.77.1"
 
 [[CImGui_jll]]
 deps = ["Libdl", "Pkg"]
@@ -22,15 +22,21 @@ version = "1.77.0+0"
 
 [[CImPlot_jll]]
 deps = ["CImGui_jll", "Libdl", "Pkg"]
-git-tree-sha1 = "d58b73abeea898b7b09e1a84f07ac51092ad4915"
+git-tree-sha1 = "6d6d188bf176827fff2b14d9f8b65624e537017d"
 uuid = "278f1f02-c5a0-563f-9174-e8b244dda450"
-version = "0.3.0+0"
+version = "0.4.0+0"
 
 [[CSyntax]]
 deps = ["CEnum"]
 git-tree-sha1 = "50a830730a04cd9ab8468a60b93ac2ca9d34ba17"
 uuid = "ea656a56-6ca6-5dda-bba5-7b6963a5f74c"
 version = "0.4.0"
+
+[[Compat]]
+deps = ["Base64", "Dates", "DelimitedFiles", "Distributed", "InteractiveUtils", "LibGit2", "Libdl", "LinearAlgebra", "Markdown", "Mmap", "Pkg", "Printf", "REPL", "Random", "SHA", "Serialization", "SharedArrays", "Sockets", "SparseArrays", "Statistics", "Test", "UUIDs", "Unicode"]
+git-tree-sha1 = "083e7e5ec3ef443e9dcb6dd3fbcb815879823bfa"
+uuid = "34da2185-b29b-5c13-b0c7-acf172513d20"
+version = "3.14.0"
 
 [[Crayons]]
 git-tree-sha1 = "c437a9c2114c7ba19322712e58942b383ffbd6c0"
@@ -43,10 +49,10 @@ uuid = "9a962f9c-6df0-11e9-0e5d-c546b8b5ee8a"
 version = "1.3.0"
 
 [[DataStructures]]
-deps = ["InteractiveUtils", "OrderedCollections"]
-git-tree-sha1 = "88d48e133e6d3dd68183309877eac74393daa7eb"
+deps = ["Compat", "InteractiveUtils", "OrderedCollections"]
+git-tree-sha1 = "d00f02a7616fdcc63a156e13c641678c70e5c412"
 uuid = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
-version = "0.17.20"
+version = "0.18.1"
 
 [[DataValueInterfaces]]
 git-tree-sha1 = "bfc1187b79289637fa0ef6d4436ebdfe6905cbd6"
@@ -56,6 +62,10 @@ version = "1.0.0"
 [[Dates]]
 deps = ["Printf"]
 uuid = "ade2ca70-3891-5945-98fb-dc099432e06a"
+
+[[DelimitedFiles]]
+deps = ["Mmap"]
+uuid = "8bb1440f-4735-579b-a4ab-409b98df4dab"
 
 [[Distributed]]
 deps = ["Random", "Serialization", "Sockets"]
@@ -69,9 +79,9 @@ version = "0.4.1"
 
 [[GLFW]]
 deps = ["GLFW_jll"]
-git-tree-sha1 = "7c47cfbfe9e1ff1cf658ff3e739eb1b56ee95cbe"
+git-tree-sha1 = "1d52b85c487f130df5b2ab21af35034bf3285916"
 uuid = "f7f18e0c-5ee9-5ccd-a5bf-e8befd85ed98"
-version = "3.2.2"
+version = "3.4.0"
 
 [[GLFW_jll]]
 deps = ["Libdl", "Libglvnd_jll", "Pkg", "Xorg_libXcursor_jll", "Xorg_libXi_jll", "Xorg_libXinerama_jll", "Xorg_libXrandr_jll"]
@@ -83,7 +93,7 @@ version = "3.3.2+0"
 deps = ["CEnum", "CImGui", "CImPlot_jll"]
 path = "/home/wikphi/git/ImPlot.jl/"
 uuid = "e8efc688-5342-4ad4-b4ba-9025a731b363"
-version = "0.3.0"
+version = "0.1.1"
 
 [[InteractiveUtils]]
 deps = ["Markdown"]
@@ -112,9 +122,9 @@ uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
 
 [[LibSerialPort]]
 deps = ["Libdl", "libserialport_jll"]
-git-tree-sha1 = "14bd5bdd156c834e82b52beca912dffe48e2455f"
+git-tree-sha1 = "6d7d012eaac350e7de5fcfd1143568feab2a067e"
 uuid = "a05a14c7-6e3b-5ba9-90a2-45558833e1df"
-version = "0.3.0"
+version = "0.4.0"
 
 [[LibUMP]]
 deps = ["CEnum"]
@@ -127,9 +137,9 @@ uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
 
 [[Libgcrypt_jll]]
 deps = ["Libdl", "Libgpg_error_jll", "Pkg"]
-git-tree-sha1 = "7efb7f5e75a0f7323cce366d3e44a2d225c5617a"
+git-tree-sha1 = "477e45ccdd239ce795c067bf6d745953e09476e6"
 uuid = "d4300ac3-e22c-5743-9152-c294e39db1e4"
-version = "1.8.5+1"
+version = "1.8.5+2"
 
 [[Libglvnd_jll]]
 deps = ["Libdl", "Pkg", "Xorg_libX11_jll", "Xorg_libXext_jll"]
@@ -171,7 +181,7 @@ version = "1.1.2"
 
 [[NIDAQ]]
 deps = ["CEnum", "DataStructures", "Distributed", "InteractiveUtils", "Libdl", "OffsetArrays", "OrderedCollections", "PrettyTables"]
-git-tree-sha1 = "f4fa67bb1dc4e7bfd44f6f11814c6ba322028a03"
+git-tree-sha1 = "569ecd916f5699ed720c1c22afe86bbe798d4cdd"
 repo-rev = "master"
 repo-url = "/home/wikphi/git/NIDAQ.jl"
 uuid = "66b72792-1abf-55ab-8064-6e9051317175"
@@ -189,7 +199,7 @@ version = "1.3.0"
 
 [[PVCAM]]
 deps = ["CEnum"]
-git-tree-sha1 = "ab60955128a05e68f0509b064a86bc7dcd4d09cc"
+git-tree-sha1 = "1bb70dce101f0964c34ad166c4e510b712927631"
 repo-rev = "wsp/cleanup"
 repo-url = "/home/wikphi/git/PVCAM.jl"
 uuid = "32c956a4-9d39-4af4-bbae-99dba85852d1"
@@ -246,6 +256,10 @@ uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
 [[Serialization]]
 uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 
+[[SharedArrays]]
+deps = ["Distributed", "Mmap", "Random", "Serialization"]
+uuid = "1a1011a3-84de-559e-8e89-a11a2f7dc383"
+
 [[Sockets]]
 uuid = "6462fe0b-24de-5631-8697-dd941f90decc"
 
@@ -290,9 +304,9 @@ deps = ["Random", "SHA"]
 uuid = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 
 [[UnPack]]
-git-tree-sha1 = "d4bfa022cd30df012700cf380af2141961bb3bfb"
+git-tree-sha1 = "387c1f73762231e86e0c9c5443ce3b4a0a9a0c2b"
 uuid = "3a884ed6-31ef-47d7-9d2a-63182c4928ed"
-version = "1.0.1"
+version = "1.0.2"
 
 [[Unicode]]
 uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
@@ -389,7 +403,7 @@ version = "1.4.0+1"
 
 [[ZeissCAN29]]
 deps = ["CEnum", "DataStructures", "LibSerialPort"]
-git-tree-sha1 = "a9626266fe0b6067aa153e5036567dd845698188"
+git-tree-sha1 = "cbee49a143c2258076b84b9888433f356bef5e65"
 repo-rev = "master"
 repo-url = "/home/wikphi/git/ZeissCAN29.jl"
 uuid = "9805570f-ef35-4d2f-b36a-1937b5ad60dd"

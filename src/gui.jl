@@ -48,18 +48,21 @@ function dec_speed()
 end
 
 function init_glfw()
-    GLFW.WindowHint(GLFW.CONTEXT_VERSION_MAJOR, 3)
-    GLFW.WindowHint(GLFW.CONTEXT_VERSION_MINOR, 0)
+    GLFW.WindowHint(GLFW.CONTEXT_VERSION_MAJOR, 4)
+    GLFW.WindowHint(GLFW.CONTEXT_VERSION_MINOR, 6)
     GLFW.SetErrorCallback(error_callback)
 end
 
 function setup()
     global IMGUI_CONTEXT = CImGui.CreateContext()
     CImGui.StyleColorsDark()
+    fonts_dir = joinpath(@__DIR__, "..", "fonts")
+    fonts = CImGui.GetIO().Fonts
+    CImGui.AddFontFromFileTTF(fonts, joinpath(fonts_dir, "MesloLGS.ttf"), 20)
     global IMGUI_WINDOW = GLFW.CreateWindow(1280, 720, "LabRig")
     @assert IMGUI_WINDOW != C_NULL
     GLFW.MakeContextCurrent(IMGUI_WINDOW)
-    GLFW.SwapInterval(1)  # enable vsync; 0 for disabled
+    GLFW.SwapInterval(1)  # enable vsync; 0 for disabled, 2 for 30fps, 3 for 20fps, etc
     ImGui_ImplGlfw_InitForOpenGL(IMGUI_WINDOW, true)
     ImGui_ImplOpenGL3_Init(GLSL_VERSION)
 end
@@ -88,6 +91,11 @@ function shutdown!(; window = IMGUI_WINDOW, ctx = IMGUI_CONTEXT)
     CImGui.DestroyContext(ctx)
     GLFW.DestroyWindow(window)
 end
+#=
+function menubar()
+    if CImGui.BeginMainMenuBar()
+        if CImGui.BeginMenu("File")
+=#
 
 function run_loop(; window = IMGUI_WINDOW)
     daq_recording = DAQ.Recording()
@@ -133,6 +141,10 @@ function run_loop(; window = IMGUI_WINDOW)
                     Pressure.attempt_break(-30, 50, 1, 3)
                 elseif isempty(Pressure.STREAM_CHANNEL)
                     put!(Pressure.STREAM_CHANNEL, [f])
+                end
+                if ImPlot.BeginPlot("Pressure Sensor", "", "", ImVec2(-1, 300))
+                    ImPlot.PlotLine(collect(Pressure.PROBE_HISTORY), label = "kPa")
+                    ImPlot.EndPlot()
                 end
                 CImGui.End()
             end
