@@ -2,6 +2,7 @@
 module Gamepad
 
 import ..CImGui.GLFWBackend.GLFW: JOYSTICK_1, GetJoystickAxes, GetJoystickButtons
+export GamepadState
 
 struct Axes
     x::Float32

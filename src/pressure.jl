@@ -29,14 +29,14 @@ atexit() do
 end
 
 function coaxcell(amplitude, fs, seconds_per_cycle, repetitions)
-    a = range(-π/2, 3π/2, length = fs * seconds_per_cycle)
+    a = range(-π/2, 3π/2, length = round(Int, fs * seconds_per_cycle))
     wave = Float32.(repeat(sin.(a) .* amplitude, outer=repetitions))
     put!(STREAM_CHANNEL, wave)
 end
 
 function attempt_break(amplitude, fs, seconds_per_cycle, repetitions)
     lag = fill(Float32(-1.0), 30)
-    a = collect(Float32, range(-1, amplitude, length = fs * seconds_per_cycle))
+    a = collect(Float32, range(-1, amplitude, length = round(Int, fs * seconds_per_cycle)))
     a = vcat(lag, a, lag)
     wave = repeat(a, outer=repetitions)
     put!(STREAM_CHANNEL, wave)
@@ -119,17 +119,17 @@ function set(value)
     if value !== CURRENT_PRESSURE[]
         Threads.atomic_xchg!(CURRENT_PRESSURE, value)
         if value == 0
-            write_analog(positive_cmd, 0.0)
-            write_analog(negative_cmd, 0.0)
-            read_digital(valves)[7] == 1 && write_digital(vac_delivery, 0)
-            read_digital(valves)[8] == 1 && write_digital(pressure_delivery, 0)
+            write_analog(positive_cmd, 0.1)
+            write_analog(negative_cmd, 0.1)
+            write_digital(vac_delivery, 1)
+            write_digital(pressure_delivery, 1)
         elseif value > 0
-            read_digital(valves)[7] !== 0 && write_digital(vac_delivery, 0)
-            read_digital(valves)[8] !== 1 && write_digital(pressure_delivery, 1)
-            write_analog(positive_cmd, value/5)
+            write_digital(vac_delivery, 0)
+            write_digital(pressure_delivery, 1)
+            write_analog(positive_cmd, value/10)
         elseif value < 0
-            read_digital(valves)[7] !== 1 && write_digital(vac_delivery, 1)
-            read_digital(valves)[8] !== 0 && write_digital(pressure_delivery, 0)
+            write_digital(vac_delivery, 1)
+            write_digital(pressure_delivery, 0)
             write_analog(negative_cmd, value/-5)
         end
     end

@@ -3,6 +3,7 @@ module DAQ
 using NIDAQ
 using DataStructures
 import ThreadPools.@tspawnat
+import NIDAQ: pulses!, pulses, pulsetiming, pulsetiming!, start, stop
 export Recording
 
 const NIDAQ_TID = Ref{Int64}(1)
@@ -11,7 +12,7 @@ if Threads.nthreads() > 1
     NIDAQ_TID[] = 2
 end
 
-struct Recording
+mutable struct Recording
     task::DAQTask{AI}
     channels::Dict{Int64, String}
     fs::Int64
@@ -30,7 +31,23 @@ struct Recording
         for (chan, name) in channels
             push!(task, dev.channels[AI][chan], alias = name, tcfg = DAQmx.Diff, range = (-1.0,1.0))
         end
-        new(task, channels, fs, refresh, history_seconds, history_samples, signal, chan)
+        rec = new(task, channels, fs, refresh, history_seconds, history_samples, signal, chan)
+        @tspawnat NIDAQ_TID[] signal_updates(rec)
+        finalizer(rec) do rec
+            close(rec.chan)
+        end
+        return rec
+    end
+end
+
+mutable struct Stimulus
+    task::DAQTask{CO}
+    function Stimulus()
+        dev = DefaultDev()
+        task = DAQTask{CO}()
+        source = dev.channels[CO][1]
+        pulses(task, source)
+        return new(task)
     end
 end
 
@@ -44,7 +61,12 @@ end
 
 function (rec::Recording)()
     @tspawnat NIDAQ_TID[] record!(rec.task, $(rec.fs), $(rec.refresh); feed = rec.chan)
-    @tspawnat NIDAQ_TID[] signal_updates(rec)
 end
+
+fetch_history(rec::Recording) = fetch(@tspawnat NIDAQ_TID[] collect(rec.signal))
+
+pulsetiming!(s::Stimulus, args...) = NIDAQ.pulsetiming!(s.task, args...)
+pulsetiming(s::Stimulus, args...) = NIDAQ.pulsetiming(s.task, args...)
+stop(s::Stimulus) = NIDAQ.stop(s.task)
 
 end # module

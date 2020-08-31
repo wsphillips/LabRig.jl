@@ -14,6 +14,7 @@ using ImPlot
 import ThreadPools.@tspawnat
 import CImGui: ImVec2, ImVec4, ImTextureID
 import ..ZEISS_TID
+
 # Globals
 global IMGUI_WINDOW #TODO: as const ref
 global IMGUI_CONTEXT #TODO: as const ref
@@ -22,8 +23,21 @@ const BACKGROUND_COLOR = Cfloat[0.45, 0.55, 0.60, 1.00]
 const PRESSURE_TID = 2
 const FRAME_STEP = Threads.Condition()
 const SPEED_STEP_MAX = 6
-const SPEED_STEP = Ref{Int64}(1)
 
+mutable struct GlobalState
+    SPEED_STEP::Int64
+    USE_GAMEPAD::Ref{Bool}
+    GAMEPAD::GamepadState
+    GAMEPAD_CACHE::GamepadState
+    function GlobalState()
+        speedstep = 1
+        usegamepad = Ref{Bool}(false)
+        gamepad = Gamepad.poll()
+        return new(speedstep, usegamepad, gamepad, gamepad)
+    end
+end
+
+const g = Ref{GlobalState}()
 # GLFW error callback
 error_callback(err::GLFW.GLFWError) = @error "GLFW ERROR: code $(err.code) msg: $(err.description)"
 
@@ -38,13 +52,13 @@ function step_notify(c::Threads.Condition)
 end
 
 function inc_speed()
-    SPEED_STEP[] == SPEED_STEP_MAX && return
-    SPEED_STEP[] += 1
+    g[].SPEED_STEP == SPEED_STEP_MAX && return
+    g[].SPEED_STEP += 1
 end
 
 function dec_speed()
-    SPEED_STEP[] == 1 && return
-    SPEED_STEP[] -= 1
+    g[].SPEED_STEP == 1 && return
+    g[].SPEED_STEP -= 1
 end
 
 function init_glfw()
@@ -92,104 +106,267 @@ function shutdown!(; window = IMGUI_WINDOW, ctx = IMGUI_CONTEXT)
     GLFW.DestroyWindow(window)
 end
 #=
+# do this later...
 function menubar()
     if CImGui.BeginMainMenuBar()
         if CImGui.BeginMenu("File")
 =#
 
-function run_loop(; window = IMGUI_WINDOW)
-    daq_recording = DAQ.Recording()
-    GC.@preserve daq_recording @async try
+abstract type UIElement end
+
+mutable struct CameraUI <: UIElement
+    frame::Vector{UInt16}
+    pipeline::ImagePipeline
+    pipeline_job::Task
+    texID::UInt32
+    livemode::Bool
+    function CameraUI()
+        livemode = false
+        frame = zeros(UInt16, 1200*1200)
+        pipeline = ImagePipeline(frame)
+        pipeline_job = @async 0
+        texID = Camera.gen_textures(1)[1]
+        Camera.load_texture(texID, frame, 1200, 1200)
+        camui = new(frame, pipeline, pipeline_job, texID, livemode)
+        finalizer(camui) do camui
+            camui.livemode && Camera.stopcont()
+        end
+        return camui
+    end
+end
+
+function (c::CameraUI)()
+    CImGui.Begin("Live View")
+    if CImGui.Button("Start Live")
+        try
+            Camera.polled_cont!()
+            c.pipeline_job = @async sleep(1.0)
+            c.livemode = true
+        catch e
+            @warn "Failed to initialize live mode"
+            c.livemode = false
+        end
+    end
+    CImGui.SameLine()
+    if CImGui.Button("Stop Live")
+        Camera.stop_cont()
+        c.livemode = false
+    end
+    if c.livemode
+        Camera.reload_texture(c.texID, c.pipeline.out, 1200, 1200)
+        CImGui.Image(ImTextureID(Int(c.texID)), ImVec2(1200,1200), ImVec2(0,0), ImVec2(1,1),
+                     ImVec4(1.0,1.0,1.0,1.0), ImVec4(1,1,1,1))
+        if istaskdone(c.pipeline_job)
+            try
+                c.frame .= Camera.latest_frame()
+                c.pipeline_job = @tspawnat 6 c.pipeline(c.frame)
+            catch e
+                @warn "Frame dropped"
+            end
+        end
+    end
+    CImGui.End()
+end
+
+mutable struct PressureUI <: UIElement
+    cmd_pressure::Ref{Cint}
+    show_history::Bool
+    fs::Int64
+    coax_amp::Ref{Int32}
+    coax_duration::Ref{Float32}
+    coax_repeat::Ref{Int32}
+    rupture_amp::Ref{Int32}
+    rupture_duration::Ref{Float32}
+    rupture_repeat::Ref{Int32}
+    function PressureUI()
+        cmd_pressure = Ref{Cint}(0) 
         @tspawnat PRESSURE_TID Pressure.stream_out(FRAME_STEP)
-        use_gamepad = false
-        gamepad_cache = Gamepad.poll()
-        Z_HOME = 0
-        Z_WORK = 0
-        tex_id = Camera.gen_textures(1)[1]
-        frame = Camera.PVCAM.initialize_cont()
-        image_pipe = Camera.ImagePipeline(frame)
-        pipe_job = @tspawnat 6 image_pipe(frame)
-        Camera.load_texture(tex_id, frame, 1200, 1200)
-        data = zeros(length(daq_recording.signal))
-        daq_recording()
+        new(cmd_pressure, false, 60, Ref{Int32}(5), Ref{Float32}(3.0), Ref{Int32}(3), Ref{Int32}(-30), Ref{Float32}(1.0), Ref{Int32}(3))
+    end
+end
+
+function (p::PressureUI)()
+    CImGui.Begin("Pressure control.")
+    CImGui.Text("Current Presure: $(Pressure.CURRENT_PRESSURE[])")
+    CImGui.DragInt("kPa", p.cmd_pressure, 0.5, -20, 100)
+    CImGui.Button("On Cell!") && (p.cmd_pressure[] = Cint(-1))
+    CImGui.SameLine()
+    CImGui.Button("NEUTRAL") && (p.cmd_pressure[] = Cint(0))
+    CImGui.SameLine()
+    CImGui.Button("Near cell") && (p.cmd_pressure[] = Cint(1))
+    CImGui.SameLine()
+    CImGui.Button("Bath mode") && (p.cmd_pressure[] = Cint(20))
+
+    #build an interface for sending ramps/transitions
+    CImGui.InputInt("Coax Amp", p.coax_amp)
+    CImGui.InputFloat("Coax Duration", p.coax_duration)
+    CImGui.InputInt("Coax repeat", p.coax_repeat)
+    CImGui.Button("Coax Cell") && Pressure.coaxcell(p.coax_amp[], p.fs, p.coax_duration[], p.coax_repeat[])
+    
+    CImGui.InputInt("Rupture Amp", p.rupture_amp)
+    CImGui.InputFloat("Rupture Duration", p.rupture_duration)
+    CImGui.InputInt("Rupture repeat", p.rupture_repeat)
+    CImGui.Button("Rupture cell") && Pressure.attempt_break(p.rupture_amp[], p.fs, p.rupture_duration[], p.rupture_repeat[])
+    
+    
+    if isempty(Pressure.STREAM_CHANNEL)
+        put!(Pressure.STREAM_CHANNEL, [p.cmd_pressure[]])
+    end
+    CImGui.Button("Toggle History") && (p.show_history = !p.show_history)
+    if p.show_history
+        if ImPlot.BeginPlot("Pressure Sensor", "", "", ImVec2(-1, 300))
+            ImPlot.PlotLine(collect(Pressure.PROBE_HISTORY), label = "kPa")
+            ImPlot.EndPlot()
+        end
+    end
+    CImGui.End()
+end
+
+mutable struct FocusUI <: UIElement
+    home_pos::Int64
+    work_pos::Int64
+    function FocusUI()
+        new(0,0)
+    end
+end
+
+function (f::FocusUI)()
+    position, velocity = fetch(@tspawnat ZEISS_TID Zeiss.get_zeiss_state())
+    gamepad = g[].GAMEPAD
+    gamepad_cache = g[].GAMEPAD_CACHE 
+    CImGui.Begin("Focus control")
+    CImGui.Checkbox("Use gamepad", g[].USE_GAMEPAD) 
+    CImGui.Text("Position: $position")
+    CImGui.Button("Go Home") && Zeiss.moveto(f.home_pos)
+    CImGui.SameLine()
+    CImGui.Button("Set Home: $(f.home_pos)") && (f.home_pos = position)
+    CImGui.Button("Go Work") && Zeiss.moveto(f.work_pos)
+    CImGui.SameLine()
+    CImGui.Button("Set Work: $(f.work_pos)") && (f.work_pos = position)
+    CImGui.Button("STOPPP!!!!!") && Zeiss.stop!()
+    if g[].USE_GAMEPAD[] # need global state for gamepad
+        CImGui.Text("Z Axis Velocity: $velocity")
+        CImGui.Text("Speed step: $(g[].SPEED_STEP)")
+        gamepad.DPAD.left && !gamepad_cache.DPAD.left && dec_speed()
+        gamepad.DPAD.right && !gamepad_cache.DPAD.right && inc_speed()
+        gamepad.button.B ? Zeiss.stop!() : new_velocity = Zeiss.update_velocity(gamepad, g[].SPEED_STEP)
+        Zeiss.set_velocity(new_velocity)
+        Manipulator.step!(gamepad)
+    end
+    CImGui.End()
+end
+
+mutable struct DAQUI <: UIElement
+    recording::DAQ.Recording
+    xii_data::Vector{Float64}
+    vm_data::Vector{Float64}
+    xii_indexes::StepRange
+    vm_indexes::StepRange
+    record::Bool
+    function DAQUI()
+        recording = DAQ.Recording()
+        xii_indexes = 1:40:length(recording.signal)
+        vm_indexes = 2:20:length(recording.signal)
+        xii_data = zeros(length(xii_indexes))
+        vm_data = zeros(length(vm_indexes))
+        return new(recording, xii_data, vm_data, xii_indexes, vm_indexes, false)
+    end
+end
+
+function (d::DAQUI)()
+    CImGui.Begin("Ephys Data")
+    if !d.record
+        if CImGui.Button("Start acquisition.")
+            wait(d.recording())
+            d.record = true
+        end
+    else
+        if CImGui.Button("Stop acquisition.")
+            DAQ.stop(d.recording.task)
+            d.record = false
+        else
+            tmp = DAQ.fetch_history(d.recording)
+            d.xii_data .= tmp[d.xii_indexes]
+            d.vm_data .= tmp[d.vm_indexes]
+            if ImPlot.BeginPlot("Vm Data", "","", ImVec2(-1,700))
+                # downsampling to 2kHz display
+                ImPlot.PlotLine(d.vm_data, label = "Vm")
+                ImPlot.EndPlot()
+            end
+            if ImPlot.BeginPlot("XII Data", "", "", ImVec2(-1,400))
+                #downsampling to 1kHz display
+                ImPlot.PlotLine(d.xii_data, label = "XII")
+                ImPlot.EndPlot()
+            end
+        end
+    end
+    CImGui.End()
+end
+
+mutable struct StimUI <: UIElement
+    stim::DAQ.Stimulus
+    user_interval::Ref{Float32}
+    user_duration::Ref{Float32}
+    function StimUI()
+        stim = DAQ.Stimulus()
+        return new(stim, Ref{Float32}(0.05), Ref{Float32}(0.03))
+    end
+end
+
+function (s::StimUI)()
+    CImGui.Begin("Stimulus Panel")
+    
+    CImGui.Button("Patch pulses.") && DAQ.pulsetiming!(s.stim, 0.05, 0.03)
+    CImGui.SameLine()
+    CImGui.Button("Ia/Ih pulses.") && DAQ.pulsetiming!(s.stim, 1.0, 0.4)
+    CImGui.SameLine()
+    CImGui.Button("Custom pulses.") && DAQ.pulsetiming!(s.stim, Float64(s.user_interval[]), Float64(s.user_duration[]))
+    CImGui.SameLine()
+    CImGui.Button("Stop pulses.") && DAQ.stop(s.stim)
+
+    CImGui.InputFloat("Custom interval", s.user_interval)
+    CImGui.InputFloat("Custom duration", s.user_duration)
+
+    CImGui.End()
+end
+
+mutable struct ElementState
+    show::Bool
+    hotload::Bool
+    function ElementState()
+        return new(false, false)
+    end
+end
+
+function build_ui()
+    ui = IdDict{UIElement, ElementState}()
+    for x in subtypes(UIElement)
+        ui[x()] = ElementState()
+    end
+    return ui
+end
+
+function run_loop(; window = IMGUI_WINDOW)
+
+    @async try
+        g[] = GlobalState()
+        ui = UIElement[]
+        for x in [CameraUI, FocusUI, PressureUI, DAQUI, StimUI]
+            push!(ui, x())
+        end
         while !GLFW.WindowShouldClose(window)
             GLFW.PollEvents()
             new_frame!()                
-            gamepad = Gamepad.poll()
+            g[].GAMEPAD = Gamepad.poll()
             
-            # Camera live view
-            CImGui.Begin("Live View")
-            # maybe we should wrap this in a try-catch to not crash on dropped frame queries?
-            wait(pipe_job)
-            Camera.reload_texture(tex_id, image_pipe.out, 1200, 1200)
-            CImGui.Image(ImTextureID(Int(tex_id)), ImVec2(1200,1200), ImVec2(0,0), ImVec2(1,1),
-                         ImVec4(1.0,1.0,1.0,1.0), ImVec4(1,1,1,1))
-            CImGui.End()
-
-            # Pressure control 
-            @cstatic f=Cint(0) begin
-                CImGui.Begin("Pressure control.")
-                CImGui.Text("Current Presure: $(Pressure.CURRENT_PRESSURE[])")
-                @c CImGui.DragInt("kPa", &f, 0.5, -20, 100)
-                CImGui.Button("On Cell!") && (f = Cint(-1))
-                CImGui.Button("NEUTRAL") && (f = Cint(0))
-                CImGui.Button("Bath mode") && (f = Cint(20))
-                #build an interface for sending ramps/transitions
-                if CImGui.Button("Coax Cell")
-                    Pressure.coaxcell(5.0, 50, 3, 3)
-                elseif CImGui.Button("Rupture cell")
-                    Pressure.attempt_break(-30, 50, 1, 3)
-                elseif isempty(Pressure.STREAM_CHANNEL)
-                    put!(Pressure.STREAM_CHANNEL, [f])
-                end
-                if ImPlot.BeginPlot("Pressure Sensor", "", "", ImVec2(-1, 300))
-                    ImPlot.PlotLine(collect(Pressure.PROBE_HISTORY), label = "kPa")
-                    ImPlot.EndPlot()
-                end
-                CImGui.End()
+            # run UI functions...
+            for el in ui
+                Base.invokelatest(el)
             end
-            # Focus control
-            CImGui.Begin("Focus control")
-            position, velocity = fetch(@tspawnat ZEISS_TID Zeiss.get_zeiss_state())
-            @c CImGui.Checkbox("Use gamepad", &use_gamepad) 
-            CImGui.Text("Position: $position")
-            CImGui.Button("Set Home: $Z_HOME") && (Z_HOME = position)
-            CImGui.Button("Set Work: $Z_WORK") && (Z_WORK = position)
-            CImGui.Button("Go Home") && Zeiss.moveto(Z_HOME)
-            CImGui.Button("Go Work") && Zeiss.moveto(Z_WORK)
-            CImGui.Button("STOPPP!!!!!") && Zeiss.stop!()
-            if use_gamepad
-                CImGui.Text("Z Axis Velocity: $velocity")
-                CImGui.Text("Speed step: $(SPEED_STEP[])")
-                gamepad.DPAD.left && !gamepad_cache.DPAD.left && dec_speed()
-                gamepad.DPAD.right && !gamepad_cache.DPAD.right && inc_speed()
-                gamepad.button.B ? Zeiss.stop!() : new_velocity = Zeiss.update_velocity(gamepad, SPEED_STEP[])
-                Zeiss.set_velocity(new_velocity)
-                Manipulator.step!(gamepad)
-            end
-            CImGui.End()
-            # NIDAQ data plotting
-            data .= fetch(@tspawnat DAQ.NIDAQ_TID[] collect(daq_recording.signal))
-            CImGui.Begin("Vm Data")
-            if ImPlot.BeginPlot("Vm Data", "","", ImVec2(-1,700))
-                # downsampling to 2kHz display
-                ImPlot.PlotLine(1:20:length(data), data, label = "Vm")
-                ImPlot.EndPlot()
-            end
-            CImGui.End()
-            CImGui.Begin("XII Data")
-            if ImPlot.BeginPlot("XII Data", "", "", ImVec2(-1,400))
-                #downsampling to 1kHz display
-                ImPlot.PlotLine(2:40:length(data), data, label = "XII")
-                ImPlot.EndPlot()
-            end
-            CImGui.End()
             # cache gamepad state
-            gamepad_cache = gamepad
+            g[].GAMEPAD_CACHE = g[].GAMEPAD
             # trigger pipelines on other threads
             step_notify(FRAME_STEP)
-            frame .= Camera.latest_frame()
-            pipe_job = @tspawnat 6 image_pipe(frame)
             render!()
             yield()
         end # main loop
@@ -198,8 +375,6 @@ function run_loop(; window = IMGUI_WINDOW)
         Base.show_backtrace(stderr, catch_backtrace())
     finally
         shutdown!()
-        @tspawnat DAQ.NIDAQ_TID[] DAQ.stop(daq_recording.task)
-        Camera.stop_cont()
     end # try-catch-finally; @async; GC.@preserve
 end # function
 

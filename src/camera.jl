@@ -5,7 +5,7 @@ using ..CImGui.OpenGLBackend.ModernGL
 using PVCAM
 export ImagePipeline
 
-mutable struct ImagePipeline
+struct ImagePipeline
     histogram::Vector{Int32}
     cdf::Vector{Int32}
     out::Array{<:Union{UInt8,UInt16}}
