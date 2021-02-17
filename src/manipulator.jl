@@ -22,5 +22,5 @@ function step!(gamepad::GamepadState)
         move_3D_by(xstep, ystep, zstep, UMP_SPEED[speed_step])
     end
 end
-#check symbols for move to + get position
+
 end # end

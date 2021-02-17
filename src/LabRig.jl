@@ -13,10 +13,10 @@ include("manipulator.jl")
 include("pressure.jl")
 include("zeiss.jl")
 include("daq.jl")
-include("camera.jl")
+#include("camera.jl")
 include("gui.jl")
 
-export Gamepad, Manipulator, Pressure, GUI, CImGui, CSyntax, CStatic, Zeiss, DAQ, Camera
+export Gamepad, Manipulator, Pressure, GUI, CImGui, CSyntax, CStatic, Zeiss, DAQ # Camera
 
 
 function init_subsystems()

@@ -8,7 +8,7 @@ using ..CImGui.GLFWBackend
 using ..CImGui.OpenGLBackend
 using ..CImGui.GLFWBackend.GLFW
 using ..CImGui.OpenGLBackend.ModernGL
-using ..Gamepad, ..Zeiss, ..Pressure, ..Manipulator, ..DAQ, ..Camera
+using ..Gamepad, ..Zeiss, ..Pressure, ..Manipulator, ..DAQ #..Camera
 using ImPlot
 
 import ThreadPools.@tspawnat
@@ -113,7 +113,7 @@ function menubar()
 =#
 
 abstract type UIElement end
-
+#=
 mutable struct CameraUI <: UIElement
     frame::Vector{UInt16}
     pipeline::ImagePipeline
@@ -167,7 +167,7 @@ function (c::CameraUI)()
     end
     CImGui.End()
 end
-
+=#
 mutable struct PressureUI <: UIElement
     cmd_pressure::Ref{Cint}
     show_history::Bool
@@ -187,6 +187,7 @@ end
 
 function (p::PressureUI)()
     CImGui.Begin("Pressure control.")
+    CImGui.Button("Perfusion Channel: " * (PRIMARY_SOLUTION[] ? "Main" : "Drug")) && toggle_solution()
     CImGui.Text("Current Presure: $(Pressure.CURRENT_PRESSURE[])")
     CImGui.DragInt("kPa", p.cmd_pressure, 0.5, -20, 100)
     CImGui.Button("On Cell!") && (p.cmd_pressure[] = Cint(-1))
@@ -230,6 +231,20 @@ mutable struct FocusUI <: UIElement
     end
 end
 
+function follow_work(focus_zpos, fui::FocusUI)
+    ump_position = Manipulator.get_position()
+    diff = Cint(fui.work_pos - focus_zpos)
+    target_position = Manipulator.Position(ump_position.x, ump_position.y, ump_position.z + diff, nothing)
+    Manipulator.moveto(target_position)
+end
+
+function follow_home(focus_zpos, fui::FocusUI)
+    ump_position = Manipulator.get_position()
+    diff = Cint(fui.home_pos - focus_zpos)
+    target_position = Manipulator.Position(ump_position.x, ump_position.y, ump_position.z + diff, nothing)
+    Manipulator.moveto(target_position)
+end
+
 function (f::FocusUI)()
     position, velocity = fetch(@tspawnat ZEISS_TID Zeiss.get_zeiss_state())
     gamepad = g[].GAMEPAD
@@ -243,6 +258,13 @@ function (f::FocusUI)()
     CImGui.Button("Go Work") && Zeiss.moveto(f.work_pos)
     CImGui.SameLine()
     CImGui.Button("Set Work: $(f.work_pos)") && (f.work_pos = position)
+    CImGui.Button("Follow Work") && follow_work(position, f)
+    # Follow home is disabled atm. You would need to do it by caching Z-axis positions. The current logic fails
+    # because you need to move the focus first (which alters its position) and changes the calculated offset. 
+    # and providing a done event that won't cause frame lag (e.g. wait for move to finish for X frames; track progress by incrementing a counter on each frame after a move)
+    # In general, a return to a position where the manipulator can be retracted for pipette change would be more useful than return to home focus position!!
+    # CImGui.SameLine()
+    # CImGui.Button("Follow Home") && follow_home(position, f)
     CImGui.Button("STOPPP!!!!!") && Zeiss.stop!()
     if g[].USE_GAMEPAD[] # need global state for gamepad
         CImGui.Text("Z Axis Velocity: $velocity")
@@ -258,18 +280,16 @@ end
 
 mutable struct DAQUI <: UIElement
     recording::DAQ.Recording
-    xii_data::Vector{Float64}
-    vm_data::Vector{Float64}
+    data::Vector{Float64}
     xii_indexes::StepRange
     vm_indexes::StepRange
     record::Bool
     function DAQUI()
         recording = DAQ.Recording()
-        xii_indexes = 1:40:length(recording.signal)
-        vm_indexes = 2:20:length(recording.signal)
-        xii_data = zeros(length(xii_indexes))
-        vm_data = zeros(length(vm_indexes))
-        return new(recording, xii_data, vm_data, xii_indexes, vm_indexes, false)
+        xii_indexes = 1:4:length(recording.signal)
+        vm_indexes = 2:4:length(recording.signal)
+        data = zeros(length(recording.signal))
+        return new(recording, data, xii_indexes, vm_indexes, false)
     end
 end
 
@@ -285,17 +305,17 @@ function (d::DAQUI)()
             DAQ.stop(d.recording.task)
             d.record = false
         else
-            tmp = DAQ.fetch_history(d.recording)
-            d.xii_data .= tmp[d.xii_indexes]
-            d.vm_data .= tmp[d.vm_indexes]
+            d.data .= collect(d.recording.signal)
+            
             if ImPlot.BeginPlot("Vm Data", "","", ImVec2(-1,700))
                 # downsampling to 2kHz display
-                ImPlot.PlotLine(d.vm_data, label = "Vm")
+                ImPlot.PlotLine(d.data[d.vm_indexes], label = "Vm")
                 ImPlot.EndPlot()
             end
-            if ImPlot.BeginPlot("XII Data", "", "", ImVec2(-1,400))
-                #downsampling to 1kHz display
-                ImPlot.PlotLine(d.xii_data, label = "XII")
+            
+            if ImPlot.BeginPlot("XII Data", "", "", ImVec2(-1,500))
+                #downsampling to 2kHz display
+                ImPlot.PlotLine(d.data[d.xii_indexes], label = "XII")
                 ImPlot.EndPlot()
             end
         end
@@ -351,7 +371,7 @@ function run_loop(; window = IMGUI_WINDOW)
     @async try
         g[] = GlobalState()
         ui = UIElement[]
-        for x in [CameraUI, FocusUI, PressureUI, DAQUI, StimUI]
+        for x in [FocusUI, PressureUI, DAQUI, StimUI] #FIXME: add CameraUI back after adjusting hist
             push!(ui, x())
         end
         while !GLFW.WindowShouldClose(window)

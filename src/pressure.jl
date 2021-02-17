@@ -2,16 +2,18 @@ module Pressure
 
 using LabJack
 using DataStructures
+export toggle_solution, PRIMARY_SOLUTION
 
 # LabJack digital/analog registers
 const positive_cmd = "TDAC0"
 const negative_cmd = "TDAC1"
-const vac_supply = "EIO0"
-const pressure_supply = "EIO2"
-const vac_delivery = "EIO6"
-const pressure_delivery = "EIO7"
+const vac_supply = "EIO6"
+const pressure_supply = "EIO7"
+const relief_poppet = "EIO2"
+const vac_delivery = "EIO1"
+const pressure_delivery = "EIO0"
 const valves = "EIO_STATE" 
-const perfusion_switch = "EIO1"
+const perfusion_switch = "EIO3"
 const vac_sensor = "AIN2"
 const probe_sensor = "AIN3"
 
@@ -21,11 +23,22 @@ const STREAM_CHANNEL = Channel{Vector{Float32}}(250)
 const RUN_STREAM = Threads.Atomic{Bool}(true)
 const MONITOR = Threads.Atomic{Bool}(true)
 const PROBE_HISTORY = CircularBuffer{Float32}(500)
+const PRIMARY_SOLUTION = Threads.Atomic{Bool}(true) # true when using "default" ACSF, false when perfusing drugs/test condition
 
 atexit() do
     RUN_STREAM[] = false
     MONITOR[] = false
     isopen(STREAM_CHANNEL) && close(STREAM_CHANNEL)
+end
+
+function toggle_solution()
+    if PRIMARY_SOLUTION[]
+        write_digital(perfusion_switch, 1)
+        PRIMARY_SOLUTION[] = false
+    else
+        write_digital(perfusion_switch, 0)
+        PRIMARY_SOLUTION[] = true
+    end
 end
 
 function coaxcell(amplitude, fs, seconds_per_cycle, repetitions)
@@ -57,7 +70,7 @@ function init_levels()
 end
 
 function pressure_transduce(volts)::Float32
-    return (volts - 3.0479)*50.0
+    return (volts - 3.0502)*50.0
 end
 
 function vac_supply_transduce(volts)::Float32
@@ -119,18 +132,21 @@ function set(value)
     if value !== CURRENT_PRESSURE[]
         Threads.atomic_xchg!(CURRENT_PRESSURE, value)
         if value == 0
-            write_analog(positive_cmd, 0.1)
-            write_analog(negative_cmd, 0.1)
+            write_analog(positive_cmd, 0.0)
+            write_analog(negative_cmd, 0.0)
+            write_digital(relief_poppet, 1)
             write_digital(vac_delivery, 1)
             write_digital(pressure_delivery, 1)
         elseif value > 0
             write_digital(vac_delivery, 0)
             write_digital(pressure_delivery, 1)
-            write_analog(positive_cmd, value/10)
+            write_analog(positive_cmd, 10*(value/101))
+            write_digital(relief_poppet, 0)
         elseif value < 0
             write_digital(vac_delivery, 1)
             write_digital(pressure_delivery, 0)
-            write_analog(negative_cmd, value/-5)
+            write_analog(negative_cmd, 10*(value/-101))
+            write_digital(relief_poppet, 0)
         end
     end
 end

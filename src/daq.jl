@@ -32,7 +32,7 @@ mutable struct Recording
             push!(task, dev.channels[AI][chan], alias = name, tcfg = DAQmx.Diff, range = (-1.0,1.0))
         end
         rec = new(task, channels, fs, refresh, history_seconds, history_samples, signal, chan)
-        @tspawnat NIDAQ_TID[] signal_updates(rec)
+        signal_updates(rec)
         finalizer(rec) do rec
             close(rec.chan)
         end
