@@ -309,13 +309,13 @@ function (d::DAQUI)()
         else
             d.data .= collect(d.recording.signal)
             
-            if ImPlot.BeginPlot("Vm Data", "","", ImVec2(-1,700))
+            if ImPlot.BeginPlot("Expose Data", "","", ImVec2(-1,300))
                 # downsampling to 2kHz display
-                ImPlot.PlotLine(d.data[d.vm_indexes], label = "Vm")
+                ImPlot.PlotLine(d.data[d.vm_indexes], label = "ExpOut")
                 ImPlot.EndPlot()
             end
             
-            if ImPlot.BeginPlot("XII Data", "", "", ImVec2(-1,500))
+            if ImPlot.BeginPlot("XII Data", "", "", ImVec2(-1,700))
                 #downsampling to 2kHz display
                 ImPlot.PlotLine(d.data[d.xii_indexes], label = "XII")
                 ImPlot.EndPlot()

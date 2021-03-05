@@ -21,7 +21,7 @@ mutable struct Recording
     history_samples::Int64
     signal::CircularBuffer{Float64}
     chan::Channel
-    function Recording(; channels = Dict(2 => "XII", 3 => "Vm"), fs = 20000, refresh = 50, history_seconds = 8)
+    function Recording(; channels = Dict(2 => "XII", 3 => "ExpOut"), fs = 20000, refresh = 50, history_seconds = 8)
         history_samples = history_seconds * fs * length(channels)
         signal = CircularBuffer{Float64}(history_samples)
         fill!(signal, 0.0)
