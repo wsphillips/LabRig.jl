@@ -8,7 +8,7 @@ using ..CImGui.GLFWBackend
 using ..CImGui.OpenGLBackend
 using ..CImGui.GLFWBackend.GLFW
 using ..CImGui.OpenGLBackend.ModernGL
-using ..Gamepad, ..Zeiss, ..Pressure, ..Manipulator, ..DAQ #..Camera
+using ..Gamepad, ..Zeiss, #=..Pressure,=# ..Manipulator, ..DAQ #..Camera
 using ImPlot
 
 import ThreadPools.@tspawnat
@@ -168,6 +168,8 @@ function (c::CameraUI)()
     CImGui.End()
 end
 =#
+
+#=
 mutable struct PressureUI <: UIElement
     cmd_pressure::Ref{Cint}
     show_history::Bool
@@ -222,7 +224,7 @@ function (p::PressureUI)()
     end
     CImGui.End()
 end
-
+=#
 mutable struct FocusUI <: UIElement
     home_pos::Int64
     work_pos::Int64
@@ -371,7 +373,7 @@ function run_loop(; window = IMGUI_WINDOW)
     @async try
         g[] = GlobalState()
         ui = UIElement[]
-        for x in [FocusUI, PressureUI, DAQUI, StimUI] #FIXME: add CameraUI back after adjusting hist
+        for x in [FocusUI, #=PressureUI,=# DAQUI, StimUI] #FIXME: add CameraUI back after adjusting hist
             push!(ui, x())
         end
         while !GLFW.WindowShouldClose(window)
